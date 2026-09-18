@@ -114,11 +114,10 @@ def ecualizacion_local(img, M, N):
 # PROGRAMA PRINCIPAL
 # -------------------------------------------------------------
 
-# Cargamos la imagen en escala de grises
-img = cv2.imread(
-    "./git/TUIA_PDI_TP1_2026_C2_outl/TP1/source/Imagen_con_detalles_escondidos.tif",
-    cv2.IMREAD_GRAYSCALE
-)
+# Cargamos la imagen en escala de grises.
+ruta_tp1 = Path(__file__).resolve().parent.parent
+ruta_imagen = ruta_tp1 / "source" / "Imagen_con_detalles_escondidos.tif"
+img = cv2.imread(str(ruta_imagen), cv2.IMREAD_GRAYSCALE)
 
 # Verificamos que la imagen se haya cargado correctamente
 if img is None:
@@ -149,6 +148,22 @@ titulos = [
     "Ecualizacion local 7x7",
     "Ecualizacion local 15x15",
 ]
+
+# Guardamos las imágenes en formato PNG antes de mostrarlas.
+ruta_outputs = ruta_tp1 / "outputs"
+ruta_outputs.mkdir(parents=True, exist_ok=True)
+nombres_archivo = [
+    "imagen_original.png",
+    "ecualizacion_local_3x3.png",
+    "ecualizacion_local_5x5.png",
+    "ecualizacion_local_7x7.png",
+    "ecualizacion_local_15x15.png",
+]
+
+for imagen, nombre_archivo in zip(imagenes, nombres_archivo):
+    ruta_salida = ruta_outputs / nombre_archivo
+    if not cv2.imwrite(str(ruta_salida), imagen):
+        raise IOError(f"No se pudo guardar la imagen en {ruta_salida}")
 
 figura, ejes = plt.subplots(1, len(imagenes), figsize=(20, 5))
 
