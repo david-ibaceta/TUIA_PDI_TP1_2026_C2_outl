@@ -81,6 +81,8 @@ for hoja in hojas:
         cv2.IMREAD_GRAYSCALE
     )
 
+    # Determino la posición de las líneas horizontales y verticales para segmentar la hoja en celdas
+    # Umbral para binarizar la imagen y detectar líneas
     th = 10
     img_th = img < th
     img_rows = np.sum(img_th, axis=1)
@@ -91,15 +93,8 @@ for hoja in hojas:
     alto_columna = linea_horizontal[-1] - linea_horizontal[1]
     (linea_vertical, ) = np.where(img_cols > alto_columna)
 
-    #print("Alto de la columna:", alto_columna)
-    
-    """
-    print("#" * 70)
-    print("Hoja:", hoja)
-    print("Renglones:", len(linea_horizontal), "en posiciones:", linea_horizontal)
-    print("Columnas:", len(linea_vertical), "en posiciones:", linea_vertical)
-    """
-
+    # Itero sobre cada línea horizontal para extraer las celdas correspondientes a Legajo, Nombre, Parcial 1,
+    # Parcial 2, Parcial 3 y Condición Final
     for i in range(1, len(linea_horizontal) - 1):
         linea_superior = linea_horizontal[i] + 2
         linea_inferior = linea_horizontal[i + 1] - 2
