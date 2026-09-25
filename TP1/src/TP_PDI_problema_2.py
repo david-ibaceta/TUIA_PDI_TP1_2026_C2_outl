@@ -2,6 +2,19 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from pathlib import Path
+
+# 1. Encontrar la ruta absoluta del proyecto para poder acceder a las carpetas 'source' y 'outputs'
+# __file__ obtiene la posición de main.py. .parent nos saca de 'scr/' y nos deja en la raíz 'TP_PDI'
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# 2. Definir las rutas de las carpetas 'source' y 'outputs' usando la ruta base
+SOURCE_DIR = BASE_DIR / "source"
+OUTPUTS_DIR = BASE_DIR / "outputs"
+
+# Asegurar que la carpeta 'outputs' exista en la pc de los colaboradores
+OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+
 
 def buscar_letras(crop_celda, umbral=170, area_minima=2):
     """
@@ -150,7 +163,7 @@ def main():
   #Itero sobre cada hoja de calificaciones
   for hoja in hojas:
       img = cv2.imread(
-          f"./git/TUIA_PDI_TP1_2026_C2_outl/TP1/source/grade_sheet_{hoja}.png",
+          SOURCE_DIR / f"grade_sheet_{hoja}.png",
           cv2.IMREAD_GRAYSCALE
       )
     
@@ -298,7 +311,7 @@ def main():
 
   
   df_resultados.to_csv(
-      "./git/TUIA_PDI_TP1_2026_C2_outl/TP1/outputs/validacion_resultados.csv",
+      OUTPUTS_DIR / "validacion_resultados.csv",
       index=False,
   )
  
