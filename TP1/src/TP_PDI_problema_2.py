@@ -3,18 +3,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-def buscar_letras(crop_celda, umbral=170, area_minima=3, ANCHO_PROMEDIO_LETRA = 10, UMBRAL_LETRA_UNICA = 14):
+def buscar_letras(crop_celda, umbral=170, area_minima=2):
     """
     Función para detectar caracteres en una celda de una hoja de calificaciones.
     Parámetros:
     - crop_celda: imagen recortada de la celda
     - umbral: umbral para la binarización
     - area_minima: área mínima para considerar un componente como un carácter
-    - ANCHO_PROMEDIO_LETRA: Ancho estimado de una letra + su espacio
-    - UMBRAL_LETRA_UNICA: Si mide menos de esto, es 1 sola letra de forma segura
     Retorna:
     - caracteres: lista de diccionarios con información de cada carácter detectado
-    - total_caracteres: número de caracteres detectados
+    - cantidad: número de caracteres detectados
     """
 
     # 1. Convertir a escala de grises si es necesario
@@ -31,44 +29,22 @@ def buscar_letras(crop_celda, umbral=170, area_minima=3, ANCHO_PROMEDIO_LETRA = 
 
     # 4. Filtrar por área mínima    
     # Empezamos en 1 para omitir el fondo (label 0)
-    # Parámetros de calibración
-
     caracteres = []
-    total_caracteres = 0
+    cantidad = 0
     for i in range(1, num_labels):
         area = stats[i, cv2.CC_STAT_AREA]
-        if area < area_minima:
-            continue
-        x = stats[i, 0]
-        y = stats[i, 1]
-        w = stats[i, 2]
-        h = stats[i, 3]
-        caracteres.append({
-            "componente": i,
-            "bbox_xywh": (w, y, w, h),
-            "area": area,
-            "centroide": centroids[i] #(cx,cy)
-        })
-            
-        # --- ESTRATEGIA DE CONTEO ESTIMADO ---
-        if w <= UMBRAL_LETRA_UNICA:
-            # Caso normal: el componente entra en el ancho de una sola letra
-            caracteres_en_componente = 1
-        else:
-            # Caso caracteres pegados: calculamos cuántas letras entran en ese ancho.
-            # Usamos división entera sumando un redondeo dinámico para casos límite.
-            caracteres_en_componente = int(np.round(w / ANCHO_PROMEDIO_LETRA))
-            
-            # Aseguramos que al menos compute 2 si superó el umbral superior
-            if caracteres_en_componente < 2:
-                caracteres_en_componente = 2
-                
-        total_caracteres += caracteres_en_componente
-        
-    return caracteres, total_caracteres
+        if area >= area_minima:
+            cantidad += 1
+            caracteres.append({
+                "componente": i,
+                "bbox_xywh": (stats[i, 0], stats[i, 1], stats[i, 2], stats[i, 3]), # x, y, w, h
+                "area": area,
+                "centroide": centroids[i] #(cx,cy)
+            })
+    return caracteres, cantidad
 
     
-def contar_palabras(caracteres, umbral_espacio=6):
+def contar_palabras(caracteres, umbral_espacio=4):
     """
     Función para contar palabras en una lista de caracteres detectados.
     Parámetros:
