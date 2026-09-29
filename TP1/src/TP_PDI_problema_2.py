@@ -62,7 +62,7 @@ def clasificar_letra(imagen_crop, umbral_ruido = 10, umbral_simetria = 50):
     Parámetros:
     - imagen_crop: imagen recortada de la celda
     - umbral_ruido: umbral para la detección letra L (ruido)
-    - umbral_simetria: umbral para la detección letra A (simetria
+    - umbral_simetria: umbral para la detección letra A (simetria)
     Retorna:
     - String con caracteres detectados
     """
@@ -150,174 +150,287 @@ def contar_palabras(caracteres, umbral_espacio=3):
 
     return cantidad_palabras
 
+def generar_imagen(df):
+    """
+    Función para generar una única imagen de salida con los registros de los
+    alumnos no aprobados.
+    Parámetros:
+    - df: Dataframe con los registros válidos que tienen calificación R Y L
+    Retorna:
+    - Imágen de salida
+    """
+    registros = df[
+        df["Registro_valido"]
+        & df["Condicion_final_letra"].isin(["L", "R"])
+    ]
+    alto_registro = 160
+    ancho_salida = 900
+    margen = 20
+    alto_salida = max(100, margen + alto_registro * len(registros))
+    img_salida = np.full((alto_salida, ancho_salida, 3), 255, dtype=np.uint8)
+
+    for indice, (_, registro) in enumerate(registros.iterrows()):
+        y = margen + indice * alto_registro
+        hoja = Path(registro["Hoja"])
+        imagen = cv2.imread(str(hoja), cv2.IMREAD_GRAYSCALE)
+        if imagen is None:
+            raise FileNotFoundError(f"No se pudo abrir la imagen: {hoja}")
+
+        a, b, c, d = (int(registro[columna]) for columna in ("a", "b", "c", "d"))
+        crop = imagen[a:b, c:d]
+        if crop.size == 0:
+            continue
+
+        alto_crop, ancho_crop = crop.shape
+        escala = min(480 / ancho_crop, 100 / alto_crop)
+        dimensiones = (max(1, int(ancho_crop * escala)), max(1, int(alto_crop * escala)))
+        crop = cv2.resize(crop, dimensiones, interpolation=cv2.INTER_AREA)
+        crop_color = cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR)
+
+        y_crop = y + 40 + (100 - crop_color.shape[0]) // 2
+        img_salida[y_crop:y_crop + crop_color.shape[0], margen:margen + crop_color.shape[1]] = crop_color
+
+        letra = registro["Condicion_final_letra"]
+        observacion = "Libre" if letra == "L" else "Recupera"
+        hoja_id = hoja.stem.removeprefix("grade_sheet_")
+        cv2.putText(
+            img_salida,
+            f"Hoja {hoja_id} | Registro {indice + 1}",
+            (margen, y + 25),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (40, 40, 40),
+            1,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            img_salida,
+            f"Calificacion: {letra}",
+            (540, y + 75),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (40, 40, 40),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            img_salida,
+            f"Observacion: {observacion}",
+            (540, y + 110),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (40, 40, 40),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.line(
+            img_salida,
+            (margen, y + alto_registro - 1),
+            (ancho_salida - margen, y + alto_registro - 1),
+            (200, 200, 200),
+            1,
+        )
+
+    ruta_salida = OUTPUTS_DIR / "no_aprobados.png"
+    if not cv2.imwrite(str(ruta_salida), img_salida):
+        raise OSError(f"No se pudo guardar la imagen: {ruta_salida}")
+    return img_salida
+
+
+
 def main():
-  #========================================================================================
-  #Comienzo del código para procesar las hojas de calificaciones
-  #========================================================================================
+    #========================================================================================
+    #Comienzo del código para procesar las hojas de calificaciones
+    #========================================================================================
 
-  
-  hojas = ["1", "2", "3", "4"]
-  registros = []
-  registro_valido = False
-
-  #Itero sobre cada hoja de calificaciones
-  for hoja in hojas:
-      img = cv2.imread(
-          SOURCE_DIR / f"grade_sheet_{hoja}.png",
-          cv2.IMREAD_GRAYSCALE
-      )
     
-      # Determino la posición de las líneas horizontales y verticales para segmentar la hoja en celdas
-      # Umbral para binarizar la imagen y detectar líneas
-      th = 10
-      img_th = img < th
-      img_rows = np.sum(img_th, axis=1)
-      img_cols = np.sum(img_th, axis=0)
+    hojas = ["1", "2", "3", "4"]
+    registros = []
+    registro_valido = False
 
-      # Identifico las posiciones de las líneas horizontales y verticales
-      (linea_horizontal, ) = np.where(img_rows >= (img_rows.max() - 2))
-      alto_columna = linea_horizontal[-1] - linea_horizontal[1]
-      (linea_vertical, ) = np.where(img_cols > alto_columna)
+    #Itero sobre cada hoja de calificaciones
+    for hoja in hojas:
+        img = cv2.imread(
+            SOURCE_DIR / f"grade_sheet_{hoja}.png",
+            cv2.IMREAD_GRAYSCALE
+        )
+        
+        # Determino la posición de las líneas horizontales y verticales para segmentar la hoja en celdas
+        # Umbral para binarizar la imagen y detectar líneas
+        th = 10
+        img_th = img < th
+        img_rows = np.sum(img_th, axis=1)
+        img_cols = np.sum(img_th, axis=0)
 
-      # Itero sobre cada línea horizontal de cada hoja para extraer las celdas correspondientes a Legajo, Nombre, Parcial 1,
-      # Parcial 2, Parcial 3 y Condición Final
-      print(f"\nProcesando hoja {hoja}...")
-      for i in range(1, len(linea_horizontal) - 1):
-          linea_superior = linea_horizontal[i] + 2
-          linea_inferior = linea_horizontal[i + 1] - 2
-          crop_legajo = img[linea_superior:linea_inferior, linea_vertical[1]+2:linea_vertical[2]-2]
-          crop_nombre = img[linea_superior:linea_inferior, linea_vertical[2]+2:linea_vertical[3]-2]
-          crop_parcial_1 = img[linea_superior:linea_inferior, linea_vertical[3]+2:linea_vertical[4]-2]
-          crop_parcial_2 = img[linea_superior:linea_inferior, linea_vertical[4]+2:linea_vertical[5]-2]
-          crop_parcial_3 = img[linea_superior:linea_inferior, linea_vertical[5]+2:linea_vertical[6]-2]
-          crop_condicion_final = img[linea_superior:linea_inferior, linea_vertical[6]+2:linea_vertical[7]-2]
+        # Identifico las posiciones de las líneas horizontales y verticales
+        (linea_horizontal, ) = np.where(img_rows >= (img_rows.max() - 2))
+        alto_columna = linea_horizontal[-1] - linea_horizontal[1]
+        (linea_vertical, ) = np.where(img_cols > alto_columna)
 
-          print(f"\nRegistro {i}:")
-          #Verificar campo Legajo ==============================================================
-          _, cantidad_legajo = buscar_letras(crop_legajo, umbral=138, area_minima=3)
-          if cantidad_legajo != 8:
-              campo_legajo = "MAL"
-          else:
-              campo_legajo = "OK"
-          print(f"Legajo: {campo_legajo}")
+        # Itero sobre cada línea horizontal de cada hoja para extraer las celdas correspondientes a Legajo, Nombre, Parcial 1,
+        # Parcial 2, Parcial 3 y Condición Final
+        print(f"\nProcesando hoja {hoja}...")
+        for i in range(1, len(linea_horizontal) - 1):
+            linea_superior = linea_horizontal[i] + 2
+            linea_inferior = linea_horizontal[i + 1] - 2
+            crop_legajo = img[linea_superior:linea_inferior, linea_vertical[1]+2:linea_vertical[2]-2]
+            crop_nombre = img[linea_superior:linea_inferior, linea_vertical[2]+2:linea_vertical[3]-2]
+            crop_parcial_1 = img[linea_superior:linea_inferior, linea_vertical[3]+2:linea_vertical[4]-2]
+            crop_parcial_2 = img[linea_superior:linea_inferior, linea_vertical[4]+2:linea_vertical[5]-2]
+            crop_parcial_3 = img[linea_superior:linea_inferior, linea_vertical[5]+2:linea_vertical[6]-2]
+            crop_condicion_final = img[linea_superior:linea_inferior, linea_vertical[6]+2:linea_vertical[7]-2]
 
-          #Verificar campo Nombre y apellido ======================================================
-          caracteres_nombre, cantidad_letras = buscar_letras(
-              crop_nombre, umbral=138, area_minima=6
-          )
-          cantidad_palabras = contar_palabras(caracteres_nombre, umbral_espacio = 6)
+            print(f"\nRegistro {i}:")
+            #Verificar campo Legajo ==============================================================
+            _, cantidad_legajo = buscar_letras(crop_legajo, umbral=138, area_minima=3)
+            if cantidad_legajo != 8:
+                campo_legajo = "MAL"
+            else:
+                campo_legajo = "OK"
+            print(f"Legajo: {campo_legajo}")
 
-          #Debe contener un minimo de 2 palabras (Apellido y Nombre) y no más de 12 caracteres
-          if cantidad_palabras < 2 or cantidad_letras > 12:
-              campo_nombre = "MAL"
-          else:
-              campo_nombre = "OK"
-          print(f"Nombre: {campo_nombre}")
+            #Verificar campo Nombre y apellido ======================================================
+            caracteres_nombre, cantidad_letras = buscar_letras(
+                crop_nombre, umbral=138, area_minima=6
+            )
+            cantidad_palabras = contar_palabras(caracteres_nombre, umbral_espacio = 6)
 
-
-          #Verificar campo Parcial_1 ==============================================================
-          caracteres_parcial_1, cantidad_letras = buscar_letras(
-              crop_parcial_1, umbral=138, area_minima=9
-          )
-          cantidad_palabras = contar_palabras(caracteres_parcial_1, umbral_espacio=2)
-
-          # Debe contener 1 o dos caracteres consecutivos (nota del parcial)
-          if cantidad_letras < 1 or cantidad_letras > 2:
-              campo_parcial_1 = "MAL"
-          else:
-              campo_parcial_1 = "OK"
-          print(f"Parcial 1: {campo_parcial_1}")
-
-          #Verificar campo Parcial_2 ==============================================================
-          caracteres_parcial_2, cantidad_letras = buscar_letras(
-              crop_parcial_2, umbral=138, area_minima=2
-          )
-          cantidad_palabras = contar_palabras(caracteres_parcial_2, umbral_espacio=2)
-
-          # Debe contener 1 o dos caracteres consecutivos (nota del parcial)
-          if cantidad_letras < 1 or cantidad_letras > 2:
-              campo_parcial_2 = "MAL"
-          else:
-              campo_parcial_2 = "OK"
-          print(f"Parcial 2: {campo_parcial_2}")
-
-          #Verificar campo Parcial_3 ==============================================================
-          caracteres_parcial_3, cantidad_letras = buscar_letras(
-              crop_parcial_3, umbral=138, area_minima=2
-          )
-          cantidad_palabras = contar_palabras(caracteres_parcial_3, umbral_espacio=2)
-
-          # Debe contener 1 o dos caracteres consecutivos (nota del parcial)
-          if cantidad_letras < 1 or cantidad_letras > 2:
-              campo_parcial_3 = "MAL"
-          else:
-              campo_parcial_3 = "OK"
-          print(f"Parcial 3: {campo_parcial_3}")
-
-          #Verificar campo condicion final ==============================================================
-          caracteres_condicion_final, cantidad_letras = buscar_letras(
-              crop_condicion_final, umbral=138, area_minima=2
-          )
-          cantidad_palabras = contar_palabras(caracteres_condicion_final, umbral_espacio=2)
-          if caracteres_condicion_final:
-              c = caracteres_condicion_final[0]["bbox_xywh"]
-              crop_letra = crop_condicion_final[c[1]:c[1]+c[3], c[0]:c[0]+c[2]]
-              calificacion = clasificar_letra(crop_letra)
-          else:
-              calificacion = "No detectada"
+            #Debe contener un minimo de 2 palabras (Apellido y Nombre) y no más de 12 caracteres
+            if cantidad_palabras < 2 or cantidad_letras > 12:
+                campo_nombre = "MAL"
+            else:
+                campo_nombre = "OK"
+            print(f"Nombre: {campo_nombre}")
 
 
-          # Debe contener 1 unica letra (A, R, L)
-          if cantidad_letras != 1:
-              campo_condicion_final = "MAL"
-              calificacion = "No detectada"
-          else:
-              campo_condicion_final = "OK"
-          print(f"Condición Final: {campo_condicion_final} ({calificacion})")
+            #Verificar campo Parcial_1 ==============================================================
+            caracteres_parcial_1, cantidad_letras = buscar_letras(
+                crop_parcial_1, umbral=138, area_minima=9
+            )
+            cantidad_palabras = contar_palabras(caracteres_parcial_1, umbral_espacio=2)
 
-          # Registrar si todos los registros cumplen condición "OK"
-          if campo_legajo == "OK" and campo_nombre == "OK" and campo_parcial_1 == "OK" and campo_parcial_2 == "OK" and campo_parcial_3 == "OK" and campo_condicion_final == "OK":
-            registro_valido = True
-          else:
-            registro_valido = False
+            # Debe contener 1 o dos caracteres consecutivos (nota del parcial)
+            if cantidad_letras < 1 or cantidad_letras > 2:
+                campo_parcial_1 = "MAL"
+            else:
+                campo_parcial_1 = "OK"
+            print(f"Parcial 1: {campo_parcial_1}")
 
-          registros.append({
-              "Hoja": hoja,
-              "Id": i,
-              "Legajo": campo_legajo,
-              "Nombre_apellido": campo_nombre,
-              "Parcial_1": campo_parcial_1,
-              "Parcial_2": campo_parcial_2,
-              "Parcial_3": campo_parcial_3,
-              "Condicion_final": campo_condicion_final,
-              "Registro_valido": registro_valido
-          })
+            #Verificar campo Parcial_2 ==============================================================
+            caracteres_parcial_2, cantidad_letras = buscar_letras(
+                crop_parcial_2, umbral=138, area_minima=2
+            )
+            cantidad_palabras = contar_palabras(caracteres_parcial_2, umbral_espacio=2)
+
+            # Debe contener 1 o dos caracteres consecutivos (nota del parcial)
+            if cantidad_letras < 1 or cantidad_letras > 2:
+                campo_parcial_2 = "MAL"
+            else:
+                campo_parcial_2 = "OK"
+            print(f"Parcial 2: {campo_parcial_2}")
+
+            #Verificar campo Parcial_3 ==============================================================
+            caracteres_parcial_3, cantidad_letras = buscar_letras(
+                crop_parcial_3, umbral=138, area_minima=2
+            )
+            cantidad_palabras = contar_palabras(caracteres_parcial_3, umbral_espacio=2)
+
+            # Debe contener 1 o dos caracteres consecutivos (nota del parcial)
+            if cantidad_letras < 1 or cantidad_letras > 2:
+                campo_parcial_3 = "MAL"
+            else:
+                campo_parcial_3 = "OK"
+            print(f"Parcial 3: {campo_parcial_3}")
+
+            #Verificar campo condicion final ==============================================================
+            caracteres_condicion_final, cantidad_letras = buscar_letras(
+                crop_condicion_final, umbral=138, area_minima=2
+            )
+            cantidad_palabras = contar_palabras(caracteres_condicion_final, umbral_espacio=2)
+            if caracteres_condicion_final:
+                c = caracteres_condicion_final[0]["bbox_xywh"]
+                crop_letra = crop_condicion_final[c[1]:c[1]+c[3], c[0]:c[0]+c[2]]
+                calificacion = clasificar_letra(crop_letra)
+            else:
+                calificacion = "No detectada"
 
 
-  df_resultados = pd.DataFrame(
-      registros,
-      columns=[
-          "Hoja",
-          "Id",
-          "Legajo",
-          "Nombre_apellido",
-          "Parcial_1",
-          "Parcial_2",
-          "Parcial_3",
-          "Condicion_final",
-          "Registro_valido"
-      ],
-  )
+            # Debe contener 1 unica letra (A, R, L)
+            if cantidad_letras != 1:
+                campo_condicion_final = "MAL"
+                calificacion = "No detectada"
+            else:
+                campo_condicion_final = "OK"
+            print(f"Condición Final: {campo_condicion_final} ({calificacion})")
 
-  
-  df_resultados.to_csv(
-      OUTPUTS_DIR / "validacion_resultados.csv",
-      index=False,
-  )
- 
+            # Registrar si todos los registros cumplen condición "OK"
+            if campo_legajo == "OK" and campo_nombre == "OK" and campo_parcial_1 == "OK" and campo_parcial_2 == "OK" and campo_parcial_3 == "OK" and campo_condicion_final == "OK":
+                registro_valido = True
+            else:
+                registro_valido = False
 
-  print("\nResultados guardados en validacion_resultados.csv")
+            registros.append({
+                "Hoja": SOURCE_DIR / f"grade_sheet_{hoja}.png",
+                "Id": i,
+                "Legajo": campo_legajo,
+                "Nombre_apellido": campo_nombre,
+                "Parcial_1": campo_parcial_1,
+                "Parcial_2": campo_parcial_2,
+                "Parcial_3": campo_parcial_3,
+                "Condicion_final": campo_condicion_final,
+                "Registro_valido": registro_valido,
+                "Condicion_final_letra": calificacion,
+                "a": linea_superior,
+                "b": linea_inferior,
+                "c": linea_vertical[2]+2,
+                "d": linea_vertical[3]-2,
+            })
+
+    df_imagen = pd.DataFrame(
+            registros,
+            columns=[
+                "Hoja",            
+                "Registro_valido",
+                "Condicion_final_letra",
+                "a",
+                "b",
+                "c",
+                "d"
+            ],
+        )
+
+    df_imagen = df_imagen[
+    (df_imagen["Registro_valido"] == True) & 
+    ((df_imagen["Condicion_final_letra"] == "R") | (df_imagen["Condicion_final_letra"] == "L"))
+]
+
+    df_resultados = pd.DataFrame(
+        registros,
+        columns=[
+            "Hoja",
+            "Id",
+            "Legajo",
+            "Nombre_apellido",
+            "Parcial_1",
+            "Parcial_2",
+            "Parcial_3",
+            "Condicion_final"
+        ],
+    )
+
+    
+    df_resultados.to_csv(
+        OUTPUTS_DIR / "validacion_resultados.csv",
+        index=False,
+    )
+    
+
+    print("\nResultados guardados en validacion_resultados.csv")
+    print(df_imagen.head(15).to_string(index=False))
+    generar_imagen(df_imagen)
+    print(f"Imagen de no aprobados guardada en {OUTPUTS_DIR / 'no_aprobados.png'}")
 
 
 if __name__ == "__main__":
     main()
+
