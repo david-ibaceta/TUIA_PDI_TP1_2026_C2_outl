@@ -1,4 +1,5 @@
 UNR | TUIA | PDI 
+
 TRABAJO PRÁCTICO N° 1 - Año 2026 - 2° Semestre
 ======================
 
@@ -19,7 +20,7 @@ y se distingue con un prefijo en el prompt:
 
     (myenv) ~/TUIA_PDI_TP1_2026_C2_outl$
 
-Con el ambienta activado se puede proceder a instalar (en este ambiente virtual), las librerías necesarias:
+Con el ambiente activado se puede proceder a instalar (en este ambiente virtual), las librerías necesarias:
 
     pip install numpy
     pip install matplotlib
@@ -83,3 +84,5 @@ Se genera asimismo una lista de los alumnos que no aprobaron el curso, y su corr
 Para facilitar la evaluación de los resultados se agregan dos imagenes conteniendo los registros válidos **validacion_grade_sheet_{n}.valid.png** e inválidos **validacion_grade_sheet_{n}.invalid.png**.
 
 También se incluye un archivo global con las evaluaciones **validacion_resultados.csv** y otra versión, también global de quienes no aprobaron **no_aprobados.png**.
+
+Hay un proceso destinado a debugging que alamcena los recortes obetenidos en la carpeta **TP1/debug**
