@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
+import csv
 
 # 1. Encontrar la ruta absoluta del proyecto para poder acceder a las carpetas 'source' y 'outputs'
 # __file__ obtiene la posición de main.py. .parent nos saca de 'scr/' y nos deja en la raíz 'TP_PDI'
@@ -11,6 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # 2. Definir las rutas de las carpetas 'source' y 'outputs' usando la ruta base
 SOURCE_DIR = BASE_DIR / "source"
 OUTPUTS_DIR = BASE_DIR / "outputs"
+DEBUG_DIR = BASE_DIR / "debug"
 
 # Asegurar que la carpeta 'outputs' exista en la pc de los colaboradores
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -172,7 +174,8 @@ def generar_imagen(df):
     for indice, (_, registro) in enumerate(registros.iterrows()):
         y = margen + indice * alto_registro
         hoja = Path(registro["Hoja"])
-        imagen = cv2.imread(str(hoja), cv2.IMREAD_GRAYSCALE)
+        file = Path(SOURCE_DIR / f"grade_sheet_{hoja}.png")
+        imagen = cv2.imread(str(file), cv2.IMREAD_GRAYSCALE)
         if imagen is None:
             raise FileNotFoundError(f"No se pudo abrir la imagen: {hoja}")
 
@@ -236,7 +239,242 @@ def generar_imagen(df):
         raise OSError(f"No se pudo guardar la imagen: {ruta_salida}")
     return img_salida
 
+def verificar_legajo(crop_legajo):
+    #Verificar campo Legajo ==============================================================
+    _, cantidad_legajo = buscar_letras(crop_legajo, umbral=138, area_minima=3)
+    if cantidad_legajo != 8:
+        return "MAL"
+    else:
+        return "OK"
 
+def verificar_nombre(crop_nombre):
+    #Verificar campo Nombre y apellido ======================================================
+    caracteres_nombre, cantidad_letras = buscar_letras(crop_nombre, umbral=138, area_minima=6)
+    cantidad_palabras = contar_palabras(caracteres_nombre, umbral_espacio = 6)
+    #Debe contener un minimo de 2 palabras (Apellido y Nombre) y no más de 12 caracteres
+    if cantidad_palabras < 2 or cantidad_letras > 12:
+        return "MAL"
+    else:
+        return "OK"
+
+def verificar_parcial(crop_parcial):
+    #Verificar campo Parcial_1 ==============================================================
+    caracteres_parcial_1, cantidad_letras = buscar_letras(crop_parcial, umbral=138, area_minima=9)
+    cantidad_palabras = contar_palabras(caracteres_parcial_1, umbral_espacio=2)
+    # Debe contener 1 o dos caracteres consecutivos (nota del parcial)
+    if cantidad_letras < 1 or cantidad_letras > 2:
+        return "MAL"
+    else:
+        return "OK"
+
+def verificar_condicion_final(crop_condicion_final):
+    #Verificar campo condicion final ==============================================================
+    caracteres_condicion_final, cantidad_letras = buscar_letras(crop_condicion_final, umbral=138, area_minima=2)
+    cantidad_palabras = contar_palabras(caracteres_condicion_final, umbral_espacio=2)
+    if caracteres_condicion_final:
+        c = caracteres_condicion_final[0]["bbox_xywh"]
+        crop_letra = crop_condicion_final[c[1]:c[1]+c[3], c[0]:c[0]+c[2]]
+        calificacion = clasificar_letra(crop_letra)
+    else:
+        calificacion = "No detectada"
+    # Debe contener 1 unica letra (A, R, L)
+    if cantidad_letras != 1:
+        campo_condicion_final = "MAL"
+        calificacion = "No detectada"
+    else:
+        campo_condicion_final = "OK"
+    return campo_condicion_final, calificacion
+
+def guardar_resultados_por_hoja(hoja:int, registros_hoja:list[Record]):
+    header = ["Id",
+              "Legajo",
+              "Nombre_apellido",
+              "Parcial_1",
+              "Parcial_2",
+              "Parcial_3",
+              "Condicion_final"
+              ]
+    data = []
+    for rec in registros_hoja:
+        data.append([rec.id,
+                     rec.record_check.campo_legajo,
+                     rec.record_check.campo_nombre,
+                     rec.record_check.campo_parcial_1,
+                     rec.record_check.campo_parcial_2,
+                     rec.record_check.campo_parcial_3,
+                     rec.record_check.campo_condicion_final])
+    with open(str(OUTPUTS_DIR / f"validacion_grade_sheet_{hoja}.csv"), 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        writer.writerows(data)
+
+def get_max_shape( actual, nuevo):
+    return (max(nuevo[0], actual[0]),max(nuevo[1],actual[1]))
+
+def guardar_desaprobados_por_hoja(hoja:int, registros_hoja:list[Record]):
+    rec_out:list[Record]
+    rec_out=[]
+
+    max_nombre = (0,0)
+    max_condic = (0,0)
+    for rec in registros_hoja:
+        if rec.record_check.registro_valido and rec.record_check.calificacion in ["R", "L"]:
+            max_nombre = get_max_shape( max_nombre, rec.record_crops.crop_nombre.shape )
+            max_condic = get_max_shape( max_condic, rec.record_crops.crop_condicion_final.shape )
+            rec_out.append(rec)
+    n = len(rec_out)
+
+    margen = 20
+    inter = 6
+    alto_registro = max(max_nombre[0],max_condic[0]) + inter
+    alto_salida = 2 * margen + alto_registro * n
+    ancho_salida = max(500, 3 * margen + max_nombre[1] + max_condic[1])
+ 
+    img_salida = np.full((alto_salida, ancho_salida, 3), 255, dtype=np.uint8)
+    row = 0
+    for rec in rec_out:
+        y = margen + row * alto_registro
+        x1 = margen
+        x2 = margen * 2 + max_nombre[1]
+        put_crop(y, x1, img_salida, rec.record_crops.crop_nombre)
+        put_crop(y, x2, img_salida, rec.record_crops.crop_condicion_final)
+        row = row + 1
+
+    ruta_salida = OUTPUTS_DIR / f"validacion_grade_sheet_{hoja}.na.png"
+    if not cv2.imwrite(str(ruta_salida), img_salida):
+        raise OSError(f"No se pudo guardar la imagen: {ruta_salida}")
+
+def guardar_validos(hoja:int, registros_hoja:list[Record]):
+    rec_val:list[Record]=[]
+    rec_inv:list[Record]=[]
+
+    max_legajo = (0,0)
+    max_nombre = (0,0)
+    max_parc_1 = (0,0)
+    max_parc_2 = (0,0)
+    max_parc_3 = (0,0)
+    max_condic = (0,0)
+            
+    for rec in registros_hoja:
+        max_legajo = get_max_shape( max_legajo, rec.record_crops.crop_legajo.shape )
+        max_nombre = get_max_shape( max_nombre, rec.record_crops.crop_nombre.shape )
+        max_parc_1 = get_max_shape( max_parc_1, rec.record_crops.crop_parcial_1.shape )
+        max_parc_2 = get_max_shape( max_parc_2, rec.record_crops.crop_parcial_2.shape )
+        max_parc_3 = get_max_shape( max_parc_3, rec.record_crops.crop_parcial_3.shape )
+        max_condic = get_max_shape( max_condic, rec.record_crops.crop_condicion_final.shape )
+        if rec.record_check.registro_valido:
+            rec_val.append(rec)
+        else:
+            rec_inv.append(rec)
+    guardar_validos_out(hoja, rec_val, "valid", max_legajo, max_nombre, max_parc_1, max_parc_2, max_parc_3, max_condic)
+    guardar_validos_out(hoja, rec_inv, "invalid", max_legajo, max_nombre, max_parc_1, max_parc_2, max_parc_3, max_condic)
+
+def guardar_validos_out(hoja:int, rec_out:list[Record], suffix, 
+                        max_legajo, max_nombre, max_parc_1, max_parc_2, max_parc_3, max_condic):
+    
+    n = len(rec_out)
+    margen = 20
+    inter = 6
+    alto_registro = max(max_legajo[0], max_nombre[0], max_parc_1[0], max_parc_2[0], max_parc_3[0], max_condic[0]) + inter
+    alto_salida = 2 * margen + alto_registro * n
+    ancho_salida = max(500, 7 * margen + max_legajo[1]+max_nombre[1]+max_parc_1[1]+max_parc_2[1]+max_parc_3[1]+max_condic[1])
+ 
+    img_salida = np.full((alto_salida, ancho_salida, 3), 255, dtype=np.uint8)
+    row = 0
+    for rec in rec_out:
+        y = margen + row * alto_registro
+        x1 = margen
+        x2 = x1 + max_legajo[1] + margen
+        x3 = x2 + max_nombre[1] + margen
+        x4 = x3 + max_parc_1[1] + margen
+        x5 = x4 + max_parc_2[1] + margen
+        x6 = x5 + max_parc_3[1] + margen
+        put_crop(y, x1, img_salida, rec.record_crops.crop_legajo)
+        put_crop(y, x2, img_salida, rec.record_crops.crop_nombre)
+        put_crop(y, x3, img_salida, rec.record_crops.crop_parcial_1)
+        put_crop(y, x4, img_salida, rec.record_crops.crop_parcial_2)
+        put_crop(y, x5, img_salida, rec.record_crops.crop_parcial_3)
+        put_crop(y, x6, img_salida, rec.record_crops.crop_condicion_final)
+        row = row + 1
+
+    ruta_salida = OUTPUTS_DIR / f"validacion_grade_sheet_{hoja}.{suffix}.png"
+    if not cv2.imwrite(str(ruta_salida), img_salida):
+        raise OSError(f"No se pudo guardar la imagen: {ruta_salida}")
+
+def put_crop(y:int, x:int, img_salida, crop:MatLike):
+    crop_color = cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR)
+    img_salida[y:y + crop_color.shape[0], x: x + crop_color.shape[1]] = crop_color
+      
+class Record_crops:
+    def __init__(self, 
+                crop_legajo, 
+                crop_nombre, 
+                crop_parcial_1, 
+                crop_parcial_2, 
+                crop_parcial_3, 
+                crop_condicion_final):
+        self.crop_legajo = crop_legajo
+        self.crop_nombre = crop_nombre
+        self.crop_parcial_1 = crop_parcial_1
+        self.crop_parcial_2 = crop_parcial_2
+        self.crop_parcial_3 = crop_parcial_3
+        self.crop_condicion_final = crop_condicion_final
+
+    def save( self, img:int, row:int):
+        sr = "{:03d}".format(row)
+        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.1.legajo.png"), self.crop_legajo):
+            pass # ignore exceptions for debug
+        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.2.nombre.png"), self.crop_nombre):
+           pass
+        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.3.parcial_1.png"), self.crop_parcial_1):
+            pass
+        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.4.parcial_2.png"), self.crop_parcial_2):
+            pass
+        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.5.parcial_3.png"), self.crop_parcial_3):
+            pass
+        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.6.condicion_final.png"), self.crop_condicion_final):
+            pass
+
+class Record_check:
+    def __init__(self,                          
+                 campo_legajo,
+                 campo_nombre,
+                 campo_parcial_1,
+                 campo_parcial_2,
+                 campo_parcial_3,
+                 campo_condicion_final,
+                 calificacion ):
+        self.campo_legajo = campo_legajo
+        self.campo_nombre = campo_nombre
+        self.campo_parcial_1 = campo_parcial_1
+        self.campo_parcial_2 = campo_parcial_2
+        self.campo_parcial_3 = campo_parcial_3
+        self.campo_condicion_final =campo_condicion_final
+        self.calificacion = calificacion
+        self.registro_valido = (self.campo_legajo == "OK" and 
+                                self.campo_nombre == "OK" and 
+                                self.campo_parcial_1 == "OK" and 
+                                self.campo_parcial_2 == "OK" and 
+                                self.campo_parcial_3 == "OK" and 
+                                self.campo_condicion_final == "OK")
+
+    def report(self, i:int):
+        print(f"\nRegistro {i}:{"Válido" if self.registro_valido else "Inválido"}")
+        print(f"Legajo: {self.campo_legajo}")
+        print(f"Nombre: {self.campo_nombre}")
+        print(f"Parcial 1: {self.campo_parcial_1}")
+        print(f"Parcial 2: {self.campo_parcial_2}")
+        print(f"Parcial 3: {self.campo_parcial_3}")
+        print(f"Condición Final: {self.campo_condicion_final} ({self.calificacion})")
+
+class Record:
+    def __init__(self, 
+                 id:int, 
+                 record_crops:Record_crops,
+                 record_check:Record_check):
+        self.id = id
+        self.record_crops = record_crops
+        self.record_check = record_check
 
 def main():
     #========================================================================================
@@ -246,10 +484,11 @@ def main():
     
     hojas = ["1", "2", "3", "4"]
     registros = []
-    registro_valido = False
+#    registro_valido = False
 
     #Itero sobre cada hoja de calificaciones
     for hoja in hojas:
+        registros_hoja = []
         img = cv2.imread(
             SOURCE_DIR / f"grade_sheet_{hoja}.png",
             cv2.IMREAD_GRAYSCALE
@@ -271,8 +510,10 @@ def main():
         # Parcial 2, Parcial 3 y Condición Final
         print(f"\nProcesando hoja {hoja}...")
         for i in range(1, len(linea_horizontal) - 1):
+
             linea_superior = linea_horizontal[i] + 2
             linea_inferior = linea_horizontal[i + 1] - 2
+
             crop_legajo = img[linea_superior:linea_inferior, linea_vertical[1]+2:linea_vertical[2]-2]
             crop_nombre = img[linea_superior:linea_inferior, linea_vertical[2]+2:linea_vertical[3]-2]
             crop_parcial_1 = img[linea_superior:linea_inferior, linea_vertical[3]+2:linea_vertical[4]-2]
@@ -280,97 +521,24 @@ def main():
             crop_parcial_3 = img[linea_superior:linea_inferior, linea_vertical[5]+2:linea_vertical[6]-2]
             crop_condicion_final = img[linea_superior:linea_inferior, linea_vertical[6]+2:linea_vertical[7]-2]
 
-            print(f"\nRegistro {i}:")
-            #Verificar campo Legajo ==============================================================
-            _, cantidad_legajo = buscar_letras(crop_legajo, umbral=138, area_minima=3)
-            if cantidad_legajo != 8:
-                campo_legajo = "MAL"
-            else:
-                campo_legajo = "OK"
-            print(f"Legajo: {campo_legajo}")
+            record_crops = Record_crops(crop_legajo,crop_nombre,crop_parcial_1,crop_parcial_2,crop_parcial_3,crop_condicion_final)
+            #for debug
+            #record_crops.save(hoja,i)
 
-            #Verificar campo Nombre y apellido ======================================================
-            caracteres_nombre, cantidad_letras = buscar_letras(
-                crop_nombre, umbral=138, area_minima=6
-            )
-            cantidad_palabras = contar_palabras(caracteres_nombre, umbral_espacio = 6)
+            campo_legajo = verificar_legajo(crop_legajo)
+            campo_nombre = verificar_nombre(crop_nombre)
+            campo_parcial_1 = verificar_parcial(crop_parcial_1)
+            campo_parcial_2 = verificar_parcial(crop_parcial_2)
+            campo_parcial_3 = verificar_parcial(crop_parcial_3)
+            campo_condicion_final, calificacion = verificar_condicion_final(crop_condicion_final)
 
-            #Debe contener un minimo de 2 palabras (Apellido y Nombre) y no más de 12 caracteres
-            if cantidad_palabras < 2 or cantidad_letras > 12:
-                campo_nombre = "MAL"
-            else:
-                campo_nombre = "OK"
-            print(f"Nombre: {campo_nombre}")
+            record_check = Record_check(campo_legajo, campo_nombre, campo_parcial_1, campo_parcial_2, campo_parcial_3, campo_condicion_final, calificacion)
+            record_check.report(i)
 
-
-            #Verificar campo Parcial_1 ==============================================================
-            caracteres_parcial_1, cantidad_letras = buscar_letras(
-                crop_parcial_1, umbral=138, area_minima=9
-            )
-            cantidad_palabras = contar_palabras(caracteres_parcial_1, umbral_espacio=2)
-
-            # Debe contener 1 o dos caracteres consecutivos (nota del parcial)
-            if cantidad_letras < 1 or cantidad_letras > 2:
-                campo_parcial_1 = "MAL"
-            else:
-                campo_parcial_1 = "OK"
-            print(f"Parcial 1: {campo_parcial_1}")
-
-            #Verificar campo Parcial_2 ==============================================================
-            caracteres_parcial_2, cantidad_letras = buscar_letras(
-                crop_parcial_2, umbral=138, area_minima=2
-            )
-            cantidad_palabras = contar_palabras(caracteres_parcial_2, umbral_espacio=2)
-
-            # Debe contener 1 o dos caracteres consecutivos (nota del parcial)
-            if cantidad_letras < 1 or cantidad_letras > 2:
-                campo_parcial_2 = "MAL"
-            else:
-                campo_parcial_2 = "OK"
-            print(f"Parcial 2: {campo_parcial_2}")
-
-            #Verificar campo Parcial_3 ==============================================================
-            caracteres_parcial_3, cantidad_letras = buscar_letras(
-                crop_parcial_3, umbral=138, area_minima=2
-            )
-            cantidad_palabras = contar_palabras(caracteres_parcial_3, umbral_espacio=2)
-
-            # Debe contener 1 o dos caracteres consecutivos (nota del parcial)
-            if cantidad_letras < 1 or cantidad_letras > 2:
-                campo_parcial_3 = "MAL"
-            else:
-                campo_parcial_3 = "OK"
-            print(f"Parcial 3: {campo_parcial_3}")
-
-            #Verificar campo condicion final ==============================================================
-            caracteres_condicion_final, cantidad_letras = buscar_letras(
-                crop_condicion_final, umbral=138, area_minima=2
-            )
-            cantidad_palabras = contar_palabras(caracteres_condicion_final, umbral_espacio=2)
-            if caracteres_condicion_final:
-                c = caracteres_condicion_final[0]["bbox_xywh"]
-                crop_letra = crop_condicion_final[c[1]:c[1]+c[3], c[0]:c[0]+c[2]]
-                calificacion = clasificar_letra(crop_letra)
-            else:
-                calificacion = "No detectada"
-
-
-            # Debe contener 1 unica letra (A, R, L)
-            if cantidad_letras != 1:
-                campo_condicion_final = "MAL"
-                calificacion = "No detectada"
-            else:
-                campo_condicion_final = "OK"
-            print(f"Condición Final: {campo_condicion_final} ({calificacion})")
-
-            # Registrar si todos los registros cumplen condición "OK"
-            if campo_legajo == "OK" and campo_nombre == "OK" and campo_parcial_1 == "OK" and campo_parcial_2 == "OK" and campo_parcial_3 == "OK" and campo_condicion_final == "OK":
-                registro_valido = True
-            else:
-                registro_valido = False
+            registros_hoja.append( Record(i, record_crops, record_check))
 
             registros.append({
-                "Hoja": SOURCE_DIR / f"grade_sheet_{hoja}.png",
+                "Hoja": hoja,
                 "Id": i,
                 "Legajo": campo_legajo,
                 "Nombre_apellido": campo_nombre,
@@ -378,13 +546,18 @@ def main():
                 "Parcial_2": campo_parcial_2,
                 "Parcial_3": campo_parcial_3,
                 "Condicion_final": campo_condicion_final,
-                "Registro_valido": registro_valido,
+                "Registro_valido": record_check.registro_valido,
                 "Condicion_final_letra": calificacion,
                 "a": linea_superior,
                 "b": linea_inferior,
                 "c": linea_vertical[2]+2,
                 "d": linea_vertical[3]-2,
             })
+        
+        guardar_resultados_por_hoja(hoja, registros_hoja)
+        guardar_desaprobados_por_hoja(hoja, registros_hoja)
+        guardar_validos(hoja, registros_hoja)
+
 
     df_imagen = pd.DataFrame(
             registros,
@@ -400,9 +573,10 @@ def main():
         )
 
     df_imagen = df_imagen[
-    (df_imagen["Registro_valido"] == True) & 
-    ((df_imagen["Condicion_final_letra"] == "R") | (df_imagen["Condicion_final_letra"] == "L"))
-]
+        (df_imagen["Registro_valido"] == True) & 
+        ((df_imagen["Condicion_final_letra"] == "R") | 
+         (df_imagen["Condicion_final_letra"] == "L"))
+    ]
 
     df_resultados = pd.DataFrame(
         registros,
