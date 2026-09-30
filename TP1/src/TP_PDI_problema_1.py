@@ -131,7 +131,9 @@ if img is None:
 resultado_3x3 = ecualizacion_local(img, 3, 3)
 resultado_5x5 = ecualizacion_local(img, 5, 5)
 resultado_7x7 = ecualizacion_local(img, 7, 7)
+resultado_11x11 = ecualizacion_local(img, 11, 11)
 resultado_15x15 = ecualizacion_local(img, 15, 15)
+resultado_19x19 = ecualizacion_local(img, 19, 19)
 
 # Guardamos todas las imágenes para mostrarlas juntas con Matplotlib.
 imagenes = [
@@ -139,14 +141,18 @@ imagenes = [
     resultado_3x3,
     resultado_5x5,
     resultado_7x7,
+    resultado_11x11,
     resultado_15x15,
+    resultado_19x19,
 ]
 titulos = [
     "Imagen original",
     "Ecualizacion local 3x3",
     "Ecualizacion local 5x5",
     "Ecualizacion local 7x7",
+    "Ecualizacion local 11x11",
     "Ecualizacion local 15x15",
+    "Ecualizacion local 19x19",
 ]
 
 # Guardamos las imágenes en formato PNG antes de mostrarlas.
@@ -157,7 +163,9 @@ nombres_archivo = [
     "ecualizacion_local_3x3.png",
     "ecualizacion_local_5x5.png",
     "ecualizacion_local_7x7.png",
+    "ecualizacion_local_11x11.png",
     "ecualizacion_local_15x15.png",
+    "ecualizacion_local_19x19.png",
 ]
 
 for imagen, nombre_archivo in zip(imagenes, nombres_archivo):

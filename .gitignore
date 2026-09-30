@@ -10,3 +10,4 @@ __pycache__/
 # Variables de entorno
 .env
 TP1/debug
+TP1/outputs
