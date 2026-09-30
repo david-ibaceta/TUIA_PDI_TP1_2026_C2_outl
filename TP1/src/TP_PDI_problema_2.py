@@ -17,6 +17,80 @@ DEBUG_DIR = BASE_DIR / "debug"
 # Asegurar que la carpeta 'outputs' exista en la pc de los colaboradores
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
+class Record_crops:
+    def __init__(self, 
+                crop_legajo, 
+                crop_nombre, 
+                crop_parcial_1, 
+                crop_parcial_2, 
+                crop_parcial_3, 
+                crop_condicion_final):
+        self.crop_legajo = crop_legajo
+        self.crop_nombre = crop_nombre
+        self.crop_parcial_1 = crop_parcial_1
+        self.crop_parcial_2 = crop_parcial_2
+        self.crop_parcial_3 = crop_parcial_3
+        self.crop_condicion_final = crop_condicion_final
+
+    def save( self, img:int, row:int):
+        sr = "{:03d}".format(row)
+        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.1.legajo.png"), self.crop_legajo):
+            pass # ignore exceptions for debug
+        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.2.nombre.png"), self.crop_nombre):
+           pass
+        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.3.parcial_1.png"), self.crop_parcial_1):
+            pass
+        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.4.parcial_2.png"), self.crop_parcial_2):
+            pass
+        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.5.parcial_3.png"), self.crop_parcial_3):
+            pass
+        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.6.condicion_final.png"), self.crop_condicion_final):
+            pass
+
+class Record_check:
+    def __init__(self,                          
+                 campo_legajo,
+                 campo_nombre,
+                 campo_parcial_1,
+                 campo_parcial_2,
+                 campo_parcial_3,
+                 campo_condicion_final,
+                 calificacion ):
+        self.campo_legajo = campo_legajo
+        self.campo_nombre = campo_nombre
+        self.campo_parcial_1 = campo_parcial_1
+        self.campo_parcial_2 = campo_parcial_2
+        self.campo_parcial_3 = campo_parcial_3
+        self.campo_condicion_final =campo_condicion_final
+        self.calificacion = calificacion
+        self.registro_valido = (self.campo_legajo == "OK" and 
+                                self.campo_nombre == "OK" and 
+                                self.campo_parcial_1 == "OK" and 
+                                self.campo_parcial_2 == "OK" and 
+                                self.campo_parcial_3 == "OK" and 
+                                self.campo_condicion_final == "OK")
+
+    def report(self, i:int):
+        print(f"\nRegistro {i}:{"Válido" if self.registro_valido else "Inválido"}")
+        print(f"Legajo: {self.campo_legajo}")
+        print(f"Nombre: {self.campo_nombre}")
+        print(f"Parcial 1: {self.campo_parcial_1}")
+        print(f"Parcial 2: {self.campo_parcial_2}")
+        print(f"Parcial 3: {self.campo_parcial_3}")
+        print(f"Condición Final: {self.campo_condicion_final} ({self.calificacion})")
+
+
+
+class Record:
+    def __init__(self, 
+                 id:int, 
+                 record_crops:Record_crops,
+                 record_check:Record_check):
+        self.id = id
+        self.record_crops = record_crops
+        self.record_check = record_check
+
+
 
 def buscar_letras(crop_celda, umbral=170, area_minima=2):
     """
@@ -401,80 +475,10 @@ def guardar_validos_out(hoja:int, rec_out:list[Record], suffix,
     if not cv2.imwrite(str(ruta_salida), img_salida):
         raise OSError(f"No se pudo guardar la imagen: {ruta_salida}")
 
-def put_crop(y:int, x:int, img_salida, crop:MatLike):
+def put_crop(y:int, x:int, img_salida, crop):
     crop_color = cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR)
     img_salida[y:y + crop_color.shape[0], x: x + crop_color.shape[1]] = crop_color
       
-class Record_crops:
-    def __init__(self, 
-                crop_legajo, 
-                crop_nombre, 
-                crop_parcial_1, 
-                crop_parcial_2, 
-                crop_parcial_3, 
-                crop_condicion_final):
-        self.crop_legajo = crop_legajo
-        self.crop_nombre = crop_nombre
-        self.crop_parcial_1 = crop_parcial_1
-        self.crop_parcial_2 = crop_parcial_2
-        self.crop_parcial_3 = crop_parcial_3
-        self.crop_condicion_final = crop_condicion_final
-
-    def save( self, img:int, row:int):
-        sr = "{:03d}".format(row)
-        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.1.legajo.png"), self.crop_legajo):
-            pass # ignore exceptions for debug
-        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.2.nombre.png"), self.crop_nombre):
-           pass
-        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.3.parcial_1.png"), self.crop_parcial_1):
-            pass
-        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.4.parcial_2.png"), self.crop_parcial_2):
-            pass
-        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.5.parcial_3.png"), self.crop_parcial_3):
-            pass
-        if not cv2.imwrite(str(DEBUG_DIR / f"crop.{img}.{sr}.6.condicion_final.png"), self.crop_condicion_final):
-            pass
-
-class Record_check:
-    def __init__(self,                          
-                 campo_legajo,
-                 campo_nombre,
-                 campo_parcial_1,
-                 campo_parcial_2,
-                 campo_parcial_3,
-                 campo_condicion_final,
-                 calificacion ):
-        self.campo_legajo = campo_legajo
-        self.campo_nombre = campo_nombre
-        self.campo_parcial_1 = campo_parcial_1
-        self.campo_parcial_2 = campo_parcial_2
-        self.campo_parcial_3 = campo_parcial_3
-        self.campo_condicion_final =campo_condicion_final
-        self.calificacion = calificacion
-        self.registro_valido = (self.campo_legajo == "OK" and 
-                                self.campo_nombre == "OK" and 
-                                self.campo_parcial_1 == "OK" and 
-                                self.campo_parcial_2 == "OK" and 
-                                self.campo_parcial_3 == "OK" and 
-                                self.campo_condicion_final == "OK")
-
-    def report(self, i:int):
-        print(f"\nRegistro {i}:{"Válido" if self.registro_valido else "Inválido"}")
-        print(f"Legajo: {self.campo_legajo}")
-        print(f"Nombre: {self.campo_nombre}")
-        print(f"Parcial 1: {self.campo_parcial_1}")
-        print(f"Parcial 2: {self.campo_parcial_2}")
-        print(f"Parcial 3: {self.campo_parcial_3}")
-        print(f"Condición Final: {self.campo_condicion_final} ({self.calificacion})")
-
-class Record:
-    def __init__(self, 
-                 id:int, 
-                 record_crops:Record_crops,
-                 record_check:Record_check):
-        self.id = id
-        self.record_crops = record_crops
-        self.record_check = record_check
 
 def main():
     #========================================================================================
