@@ -3,7 +3,6 @@ UNR | TUIA | PDI
 TRABAJO PRÁCTICO N° 1 - Año 2026 - 2° Semestre
 ======================
 
-The idea is to demonstrate MVC architecture in the context of Express.
 # Preparación
 
 Para ejecutar el código alojado en la carpeta src, será necesario crear un entorno virtual. Por ejemplo, desde la raiz del repositorio clonado:
