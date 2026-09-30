@@ -17,6 +17,7 @@ DEBUG_DIR = BASE_DIR / "debug"
 # Asegurar que la carpeta 'outputs' exista en la pc de los colaboradores
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
+
 class Record_crops:
     def __init__(self, 
                 crop_legajo, 
