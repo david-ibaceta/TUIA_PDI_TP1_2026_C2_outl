@@ -349,7 +349,7 @@ def verificar_condicion_final(crop_condicion_final):
     if caracteres_condicion_final:
         c = caracteres_condicion_final[0]["bbox_xywh"]
         crop_letra = crop_condicion_final[c[1]:c[1]+c[3], c[0]:c[0]+c[2]]
-        calificacion = clasificar_letra(crop_letra)
+        calificacion = clasificar_letra(crop_letra,umbral_simetria=30) ## Para detectar bien la R pixelada
     else:
         calificacion = "No detectada"
     # Debe contener 1 unica letra (A, R, L)
@@ -515,7 +515,6 @@ def main():
         # Parcial 2, Parcial 3 y Condición Final
         print(f"\nProcesando hoja {hoja}...")
         for i in range(1, len(linea_horizontal) - 1):
-
             linea_superior = linea_horizontal[i] + 2
             linea_inferior = linea_horizontal[i + 1] - 2
 
