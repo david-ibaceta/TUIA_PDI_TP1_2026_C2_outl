@@ -180,11 +180,25 @@ for imagen, nombre_archivo in zip(imagenes, nombres_archivo):
     if not cv2.imwrite(str(ruta_salida), imagen):
         raise IOError(f"No se pudo guardar la imagen en {ruta_salida}")
 
-figura, ejes = plt.subplots(1, len(imagenes), figsize=(20, 5))
 
-for eje, imagen, titulo in zip(ejes, imagenes, titulos):
+n_columnas = min(5, len(imagenes))
+n_filas = (len(imagenes) + n_columnas - 1) // n_columnas
+
+figura, ejes = plt.subplots(
+    n_filas,
+    n_columnas,
+    figsize=(4 * n_columnas, 4 * n_filas),
+    squeeze=False
+)
+
+
+for eje, imagen, titulo in zip(ejes.flat, imagenes, titulos):
     eje.imshow(imagen, cmap="gray", vmin=0, vmax=255)
     eje.set_title(titulo)
+    eje.axis("off")
+
+# Ocultar los espacios vacíos de la última fila
+for eje in ejes.flat[len(imagenes):]:
     eje.axis("off")
 
 figura.tight_layout()
