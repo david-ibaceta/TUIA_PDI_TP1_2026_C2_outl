@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+import time
 
 
 def ecualizacion_local(img, M, N):
@@ -113,6 +114,7 @@ def ecualizacion_local(img, M, N):
 # -------------------------------------------------------------
 # PROGRAMA PRINCIPAL
 # -------------------------------------------------------------
+tiempo_inicio = time.perf_counter()
 
 # Cargamos la imagen en escala de grises.
 ruta_tp1 = Path(__file__).resolve().parent.parent
@@ -136,6 +138,9 @@ resultado_15x15 = ecualizacion_local(img, 15, 15)
 resultado_19x19 = ecualizacion_local(img, 19, 19)
 resultado_25x25 = ecualizacion_local(img, 25, 25)
 resultado_35x35 = ecualizacion_local(img, 35, 35)
+
+tiempo_total = time.perf_counter() - tiempo_inicio
+
 # Guardamos todas las imágenes para mostrarlas juntas con Matplotlib.
 imagenes = [
     img,
@@ -203,3 +208,5 @@ for eje in ejes.flat[len(imagenes):]:
 
 figura.tight_layout()
 plt.show()
+
+print(f"Tiempo total de ejecución: {tiempo_total:.2f} segundos")
