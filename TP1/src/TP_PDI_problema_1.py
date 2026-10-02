@@ -207,6 +207,7 @@ for eje in ejes.flat[len(imagenes):]:
     eje.axis("off")
 
 figura.tight_layout()
+plt.savefig(ruta_outputs / "comparacion_ecualizacion_local_Numpy.png")
 plt.show()
 
 print(f"Tiempo total de ejecución: {tiempo_total:.2f} segundos")

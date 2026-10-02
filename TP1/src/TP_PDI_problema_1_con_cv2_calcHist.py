@@ -170,6 +170,7 @@ for eje in ejes.flat[len(imagenes):]:
     eje.axis("off")
 
 figura.tight_layout()
+plt.savefig(ruta_outputs / "comparacion_ecualizacion_local_cv2.png")
 plt.show()
 
 
