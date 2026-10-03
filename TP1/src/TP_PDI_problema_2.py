@@ -332,9 +332,9 @@ def verificar_nombre(crop_nombre):
     else:
         return "OK"
 
-def verificar_parcial(crop_parcial):
+def verificar_parcial(crop_parcial, area_minima=1):
     #Verificar campo Parcial_1 ==============================================================
-    caracteres_parcial_1, cantidad_letras = buscar_letras(crop_parcial, umbral=138, area_minima=9)
+    caracteres_parcial_1, cantidad_letras = buscar_letras(crop_parcial, umbral=138, area_minima=area_minima)
     cantidad_palabras = contar_palabras(caracteres_parcial_1, umbral_espacio=2)
     # Debe contener 1 o dos caracteres consecutivos (nota del parcial)
     if cantidad_letras < 1 or cantidad_letras > 2:
@@ -526,13 +526,14 @@ def main():
             crop_condicion_final = img[linea_superior:linea_inferior, linea_vertical[6]+2:linea_vertical[7]-2]
 
             record_crops = Record_crops(crop_legajo,crop_nombre,crop_parcial_1,crop_parcial_2,crop_parcial_3,crop_condicion_final)
-            #for debug
+            
+            # Habilitar linea siguiente for debug
             #record_crops.save(hoja,i)
 
             campo_legajo = verificar_legajo(crop_legajo)
             campo_nombre = verificar_nombre(crop_nombre)
             campo_parcial_1 = verificar_parcial(crop_parcial_1)
-            campo_parcial_2 = verificar_parcial(crop_parcial_2)
+            campo_parcial_2 = verificar_parcial(crop_parcial_2, area_minima=1)
             campo_parcial_3 = verificar_parcial(crop_parcial_3)
             campo_condicion_final, calificacion = verificar_condicion_final(crop_condicion_final)
 
@@ -611,4 +612,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
