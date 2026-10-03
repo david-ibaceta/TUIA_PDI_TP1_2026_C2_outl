@@ -11,3 +11,5 @@ __pycache__/
 .env
 TP1/debug
 TP1/outputs
+
+.DS_Store
