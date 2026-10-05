@@ -19,7 +19,7 @@ y se distingue con un prefijo en el prompt:
 
     (myenv) ~/TUIA_PDI_TP1_2026_C2_outl$
 
-Con el ambiente activado se puede proceder a instalar (en este ambiente virtual), las librerías necesarias:
+Con el ambiente activado se puede proceder a instalar (en este ambiente virtual), las librerías necesarias (en el archivo requirements.txt se encuentra la lista de librerias instaladas):
 
     pip install numpy
     pip install matplotlib

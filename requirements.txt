@@ -1,3 +1,4 @@
+appnope==1.0.0
 asarPy==1.0.1
 asttokens==3.0.2
 comm==0.2.3
@@ -19,6 +20,7 @@ nest-asyncio2==1.7.2
 numpy==2.5.3
 opencv-python==5.0.0.93
 packaging==26.3
+pandas==3.0.6
 parso==0.8.7
 pexpect==4.9.0
 pillow==12.3.0
